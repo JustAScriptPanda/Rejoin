@@ -875,8 +875,8 @@ class RobloxManager:
     @staticmethod
     def inject_cookies_and_appstorage():
         RobloxManager.kill_roblox_processes()
-        db_url = "https://raw.githubusercontent.com/nghvit/module/refs/heads/main/import/Cookies"
-        appstorage_url = "https://raw.githubusercontent.com/nghvit/module/refs/heads/main/import/appStorage.json"
+        db_url = "https://raw.githubusercontent.com/JustAScriptPanda/module/refs/heads/main/import/Cookies"
+        appstorage_url = "https://raw.githubusercontent.com/JustAScriptPanda/module/refs/heads/main/import/appStorage.json"
 
         downloaded_db_path = FileManager.download_file(db_url, "Cookies.db", binary=True)
         downloaded_appstorage_path = FileManager.download_file(appstorage_url, "appStorage.json", binary=False)
@@ -956,8 +956,8 @@ class RobloxManager:
         else:
             print("\033[1;32m[ Shouko.dev ] - Successfully launched all packages.\033[0m")
 
-        print("\033[1;33m[ Shouko.dev ] - Waiting for all tabs to load (1 minute)...\033[0m")
-        time.sleep(60)
+        print("\033[1;33m[ Shouko.dev ] - Waiting for all tabs to load (30 minute)...\033[0m")
+        time.sleep(30)
 
         debug_mode = input("\033[1;93m[ Shouko.dev ] - Keep Roblox tabs open for debugging? (y/n): \033[0m").strip().lower()
         if debug_mode != 'y':
@@ -1324,7 +1324,7 @@ class ExecutorManager:
                     return True
             if continuous and time.time() > retry_timeout:
                 return False
-            time.sleep(20)
+            time.sleep(5)
 
     @staticmethod
     def check_executor_and_rejoin(package_name, server_link, next_package_event):
@@ -1347,18 +1347,18 @@ class ExecutorManager:
                             executor_loaded = True
                             next_package_event.set()
                             break
-                        time.sleep(20)  
+                        time.sleep(5)
 
                     if not executor_loaded:
                         globals()["package_statuses"][package_name]["Status"] = "\033[1;31mExecutor didn't load. Rejoining...\033[0m"
                         UIManager.update_status_table()
-                        time.sleep(15)
+                        time.sleep(5)
 
                         ExecutorManager.reset_executor_file(package_name)
                         time.sleep(0.5)
                         RobloxManager.kill_roblox_process(package_name)
                         RobloxManager.delete_cache_for_package(package_name)
-                        time.sleep(15)
+                        time.sleep(12)
                         print(f"\033[1;33m[ Shouko.dev ] - Rejoining {package_name}...\033[0m")
                         globals()["package_statuses"][package_name]["Status"] = "\033[1;36mRejoining\033[0m"
                         UIManager.update_status_table()
@@ -1369,7 +1369,7 @@ class ExecutorManager:
                 except Exception as e:
                     globals()["package_statuses"][package_name]["Status"] = f"\033[1;31mError checking executor for {package_name}: {e}\033[0m"
                     UIManager.update_status_table()
-                    time.sleep(10)
+                    time.sleep(2)
 
                     ExecutorManager.reset_executor_file(package_name)
                     time.sleep(2)
@@ -1479,10 +1479,10 @@ class Runner:
                             with status_lock:
                                 globals()["package_statuses"][package_name]["Status"] = "\033[1;32mIn-Game\033[0m"
                                 UIManager.update_status_table()
-                time.sleep(60)
+                time.sleep(30)
             except Exception as e:
                 Utilities.log_error(f"Error in presence monitor: {e}")
-                time.sleep(60)
+                time.sleep(30)
 
     @staticmethod
     def force_rejoin(server_links, interval, stop_event):
@@ -1496,7 +1496,7 @@ class Runner:
                 print("\033[1;33m[ Shouko.dev ] - Waiting for 5 seconds before starting the rejoin process...\033[0m")
                 time.sleep(5)
                 Runner.launch_package_sequentially(server_links)
-            time.sleep(120)
+            time.sleep(30)
 
     @staticmethod
     def update_status_table_periodically():
@@ -1506,7 +1506,7 @@ class Runner:
 
 def check_activation_status():
     try:
-        response = requests.get("https://raw.githubusercontent.com/nghvit/module/refs/heads/main/status/customize", timeout=5)
+        response = requests.get("https://raw.githubusercontent.com/JustAScriptPanda/module/refs/heads/main/status/customize", timeout=5)
         response.raise_for_status()
         content = response.text.strip()
         if content == "true":
@@ -1628,7 +1628,7 @@ def main():
                     threading.Thread(target=task[0], args=task[1], daemon=True).start()
 
                 while not stop_main_event.is_set():
-                    time.sleep(500)
+                    time.sleep(20)
                     with status_lock:
                         UIManager.update_status_table()
                     Utilities.collect_garbage()
