@@ -775,6 +775,121 @@ class RobloxManager:
                     return None
 
     @staticmethod
+    def check_user_game(user_id, expected_game_id=None, cookie=None):
+        """
+        Check if user is in the specific game (by game ID)
+        Returns True if user is in the expected game, False otherwise
+        """
+        max_retries = 2
+        delay = 2
+        body = {"userIds": [user_id]}
+        headers = {"Content-Type": "application/json"}
+        if cookie is not None:
+            headers["Cookie"] = f".ROBLOSECURITY={cookie}"
+        
+        for attempt in range(max_retries):
+            try:
+                with requests.Session() as session:
+                    response = session.post("https://presence.roblox.com/v1/presence/users", headers=headers, json=body, timeout=7)
+                response.raise_for_status()
+                data = response.json()
+                
+                if data["userPresences"] and len(data["userPresences"]) > 0:
+                    user_presence = data["userPresences"][0]
+                    presence_type = user_presence.get("userPresenceType")
+                    
+                    # If not in-game, return False
+                    if presence_type != 2:
+                        return False
+                    
+                    # If no specific game expected, just check if in-game
+                    if expected_game_id is None:
+                        return True
+                    
+                    # Check if in the specific game
+                    root_place_id = user_presence.get("rootPlaceId")
+                    if str(root_place_id) == str(expected_game_id):
+                        return True
+                    else:
+                        return False
+                
+                return False
+
+            except requests.exceptions.RequestException as e:
+                print(f"\033[1;31mError checking game status for user {user_id} (Attempt {attempt + 1}) for Roblox API: {e}\033[0m")
+                if attempt < max_retries - 1:
+                    time.sleep(delay)
+                    delay *= 2
+
+        # Try with roproxy as fallback
+        for attempt in range(max_retries):
+            try:
+                with requests.Session() as session:
+                    response = session.post("https://presence.roproxy.com/v1/presence/users", headers=headers, json=body, timeout=7)
+                response.raise_for_status()
+                data = response.json()
+                
+                if data["userPresences"] and len(data["userPresences"]) > 0:
+                    user_presence = data["userPresences"][0]
+                    presence_type = user_presence.get("userPresenceType")
+                    
+                    if presence_type != 2:
+                        return False
+                    
+                    if expected_game_id is None:
+                        return True
+                    
+                    root_place_id = user_presence.get("rootPlaceId")
+                    if str(root_place_id) == str(expected_game_id):
+                        return True
+                    else:
+                        return False
+                
+                return False
+
+            except requests.exceptions.RequestException as e:
+                print(f"\033[1;31mError checking game status for user {user_id} (Attempt {attempt + 1}) for RoProxy API: {e}\033[0m")
+                if attempt < max_retries - 1:
+                    time.sleep(delay)
+                    delay *= 2
+                else:
+                    return False
+
+    @staticmethod
+    def extract_game_id_from_link(server_link):
+        """
+        Extract game ID from server link
+        """
+        try:
+            # If it's a roblox:// link
+            if server_link.startswith('roblox://'):
+                import re
+                match = re.search(r'placeID=(\d+)', server_link)
+                if match:
+                    return match.group(1)
+            # If it's a URL
+            elif 'roblox.com/games/' in server_link:
+                import re
+                match = re.search(r'games/(\d+)', server_link)
+                if match:
+                    return match.group(1)
+            # If it's just a number
+            elif server_link.isdigit():
+                return server_link
+            # Try to extract from any URL format
+            else:
+                import re
+                match = re.search(r'placeId=(\d+)', server_link)
+                if match:
+                    return match.group(1)
+                match = re.search(r'placeID=(\d+)', server_link)
+                if match:
+                    return match.group(1)
+        except:
+            pass
+        return None
+
+    @staticmethod
     def get_roblox_packages():
         packages = []
         try:
@@ -875,8 +990,8 @@ class RobloxManager:
     @staticmethod
     def inject_cookies_and_appstorage():
         RobloxManager.kill_roblox_processes()
-        db_url = "https://raw.githubusercontent.com/JustAScriptPanda/module/refs/heads/main/import/Cookies"
-        appstorage_url = "https://raw.githubusercontent.com/JustAScriptPanda/module/refs/heads/main/import/appStorage.json"
+        db_url = "https://raw.githubusercontent.com/nghvit/module/refs/heads/main/import/Cookies"
+        appstorage_url = "https://raw.githubusercontent.com/nghvit/module/refs/heads/main/import/appStorage.json"
 
         downloaded_db_path = FileManager.download_file(db_url, "Cookies.db", binary=True)
         downloaded_appstorage_path = FileManager.download_file(appstorage_url, "appStorage.json", binary=False)
@@ -956,8 +1071,8 @@ class RobloxManager:
         else:
             print("\033[1;32m[ Shouko.dev ] - Successfully launched all packages.\033[0m")
 
-        print("\033[1;33m[ Shouko.dev ] - Waiting for all tabs to load (30 minute)...\033[0m")
-        time.sleep(30)
+        print("\033[1;33m[ Shouko.dev ] - Waiting for all tabs to load (1 minute)...\033[0m")
+        time.sleep(60)
 
         debug_mode = input("\033[1;93m[ Shouko.dev ] - Keep Roblox tabs open for debugging? (y/n): \033[0m").strip().lower()
         if debug_mode != 'y':
@@ -1324,7 +1439,7 @@ class ExecutorManager:
                     return True
             if continuous and time.time() > retry_timeout:
                 return False
-            time.sleep(5)
+            time.sleep(20)
 
     @staticmethod
     def check_executor_and_rejoin(package_name, server_link, next_package_event):
@@ -1347,18 +1462,18 @@ class ExecutorManager:
                             executor_loaded = True
                             next_package_event.set()
                             break
-                        time.sleep(5)
+                        time.sleep(20)  
 
                     if not executor_loaded:
                         globals()["package_statuses"][package_name]["Status"] = "\033[1;31mExecutor didn't load. Rejoining...\033[0m"
                         UIManager.update_status_table()
-                        time.sleep(5)
+                        time.sleep(15)
 
                         ExecutorManager.reset_executor_file(package_name)
                         time.sleep(0.5)
                         RobloxManager.kill_roblox_process(package_name)
                         RobloxManager.delete_cache_for_package(package_name)
-                        time.sleep(12)
+                        time.sleep(15)
                         print(f"\033[1;33m[ Shouko.dev ] - Rejoining {package_name}...\033[0m")
                         globals()["package_statuses"][package_name]["Status"] = "\033[1;36mRejoining\033[0m"
                         UIManager.update_status_table()
@@ -1369,7 +1484,7 @@ class ExecutorManager:
                 except Exception as e:
                     globals()["package_statuses"][package_name]["Status"] = f"\033[1;31mError checking executor for {package_name}: {e}\033[0m"
                     UIManager.update_status_table()
-                    time.sleep(2)
+                    time.sleep(10)
 
                     ExecutorManager.reset_executor_file(package_name)
                     time.sleep(2)
@@ -1452,37 +1567,78 @@ class Runner:
             try:
                 if globals()["check_exec_enable"] == "0":
                     for package_name, server_link in server_links:
-                        ckhuy = FileManager.xuat(f"/data/data/{package_name}/app_webview/Default/Cookies")
                         user_id = globals()["_user_"][package_name]
                         
-                        presence_type = RobloxManager.check_user_online(user_id, ckhuy)
+                        # Get game ID from server link
+                        game_id = RobloxManager.extract_game_id_from_link(server_link)
                         
-                        if not in_game_status[package_name]:
-                            if presence_type == 2:
+                        if game_id:
+                            # Check if user is online AND in the correct game
+                            in_correct_game = RobloxManager.check_user_game(user_id, game_id)
+                            
+                            if not in_game_status[package_name]:
+                                if in_correct_game:
+                                    with status_lock:
+                                        globals()["package_statuses"][package_name]["Status"] = "\033[1;32mIn-Game\033[0m"
+                                        UIManager.update_status_table()
+                                    in_game_status[package_name] = True
+                                    print(f"\033[1;32m[ Shouko.dev ] - {user_id} is now In-Game, monitoring started.\033[0m")
+                                else:
+                                    # User is online but not in the correct game, rejoin
+                                    with status_lock:
+                                        globals()["package_statuses"][package_name]["Status"] = "\033[1;31mOnline but not in correct game, Rejoining!\033[0m"
+                                        UIManager.update_status_table()
+                                    print(f"\033[1;31m[ Shouko.dev ] - {user_id} is online but not in the correct game, rejoining...\033[0m")
+                                    RobloxManager.kill_roblox_process(package_name)
+                                    RobloxManager.delete_cache_for_package(package_name)
+                                    time.sleep(2)
+                                    threading.Thread(target=RobloxManager.launch_roblox, args=[package_name, server_link], daemon=True).start()
+                                continue 
+                            
+                            # Already in game, check if still in correct game
+                            if not in_correct_game:
+                                with status_lock:
+                                    globals()["package_statuses"][package_name]["Status"] = "\033[1;31mNot In-Game, Rejoining!\033[0m"
+                                    UIManager.update_status_table()
+                                print(f"\033[1;31m[ Shouko.dev ] - {user_id} confirmed not in correct game, rejoining...\033[0m")
+                                RobloxManager.kill_roblox_process(package_name)
+                                RobloxManager.delete_cache_for_package(package_name)
+                                time.sleep(2)
+                                threading.Thread(target=RobloxManager.launch_roblox, args=[package_name, server_link], daemon=True).start()
+                            else:
                                 with status_lock:
                                     globals()["package_statuses"][package_name]["Status"] = "\033[1;32mIn-Game\033[0m"
                                     UIManager.update_status_table()
-                                in_game_status[package_name] = True
-                                print(f"\033[1;32m[ Shouko.dev ] - {user_id} is now In-Game, monitoring started.\033[0m")
-                            continue 
-                        
-                        if presence_type != 2:
-                            with status_lock:
-                                globals()["package_statuses"][package_name]["Status"] = "\033[1;31mNot In-Game, Rejoining!\033[0m"
-                                UIManager.update_status_table()
-                            print(f"\033[1;31m[ Shouko.dev ] - {user_id} confirmed offline, rejoining...\033[0m")
-                            RobloxManager.kill_roblox_process(package_name)
-                            RobloxManager.delete_cache_for_package(package_name)
-                            time.sleep(2)
-                            threading.Thread(target=RobloxManager.launch_roblox, args=[package_name, server_link], daemon=True).start()
                         else:
-                            with status_lock:
-                                globals()["package_statuses"][package_name]["Status"] = "\033[1;32mIn-Game\033[0m"
-                                UIManager.update_status_table()
-                time.sleep(30)
+                            # If no game ID found, just check online status
+                            presence_type = RobloxManager.check_user_online(user_id)
+                            
+                            if not in_game_status[package_name]:
+                                if presence_type == 2:
+                                    with status_lock:
+                                        globals()["package_statuses"][package_name]["Status"] = "\033[1;32mIn-Game\033[0m"
+                                        UIManager.update_status_table()
+                                    in_game_status[package_name] = True
+                                    print(f"\033[1;32m[ Shouko.dev ] - {user_id} is now In-Game, monitoring started.\033[0m")
+                                continue 
+                            
+                            if presence_type != 2:
+                                with status_lock:
+                                    globals()["package_statuses"][package_name]["Status"] = "\033[1;31mNot In-Game, Rejoining!\033[0m"
+                                    UIManager.update_status_table()
+                                print(f"\033[1;31m[ Shouko.dev ] - {user_id} confirmed offline, rejoining...\033[0m")
+                                RobloxManager.kill_roblox_process(package_name)
+                                RobloxManager.delete_cache_for_package(package_name)
+                                time.sleep(2)
+                                threading.Thread(target=RobloxManager.launch_roblox, args=[package_name, server_link], daemon=True).start()
+                            else:
+                                with status_lock:
+                                    globals()["package_statuses"][package_name]["Status"] = "\033[1;32mIn-Game\033[0m"
+                                    UIManager.update_status_table()
+                time.sleep(60)
             except Exception as e:
                 Utilities.log_error(f"Error in presence monitor: {e}")
-                time.sleep(30)
+                time.sleep(60)
 
     @staticmethod
     def force_rejoin(server_links, interval, stop_event):
@@ -1496,7 +1652,7 @@ class Runner:
                 print("\033[1;33m[ Shouko.dev ] - Waiting for 5 seconds before starting the rejoin process...\033[0m")
                 time.sleep(5)
                 Runner.launch_package_sequentially(server_links)
-            time.sleep(30)
+            time.sleep(120)
 
     @staticmethod
     def update_status_table_periodically():
@@ -1506,7 +1662,7 @@ class Runner:
 
 def check_activation_status():
     try:
-        response = requests.get("https://raw.githubusercontent.com/JustAScriptPanda/module/refs/heads/main/status/customize", timeout=5)
+        response = requests.get("https://raw.githubusercontent.com/nghvit/module/refs/heads/main/status/customize", timeout=5)
         response.raise_for_status()
         content = response.text.strip()
         if content == "true":
@@ -1628,7 +1784,7 @@ def main():
                     threading.Thread(target=task[0], args=task[1], daemon=True).start()
 
                 while not stop_main_event.is_set():
-                    time.sleep(20)
+                    time.sleep(500)
                     with status_lock:
                         UIManager.update_status_table()
                     Utilities.collect_garbage()
